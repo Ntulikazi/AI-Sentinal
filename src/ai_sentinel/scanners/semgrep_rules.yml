@@ -1,0 +1,21 @@
+rules:
+  - id: ai-sentinel.python.dynamic-eval
+    languages:
+      - python
+    message: Avoid evaluating dynamically supplied expressions.
+    severity: ERROR
+    pattern: eval(...)
+  - id: ai-sentinel.python.subprocess-shell-true
+    languages:
+      - python
+    message: Avoid invoking subprocess APIs with shell=True.
+    severity: WARNING
+    pattern: subprocess.$FUNCTION(..., shell=True, ...)
+  - id: ai-sentinel.python.pickle-load
+    languages:
+      - python
+    message: Loading untrusted pickle data can execute arbitrary code.
+    severity: ERROR
+    pattern-either:
+      - pattern: pickle.load(...)
+      - pattern: pickle.loads(...)

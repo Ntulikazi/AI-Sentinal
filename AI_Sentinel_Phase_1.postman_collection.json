@@ -1,0 +1,2365 @@
+{
+  "info": {
+    "_postman_id": "7e912304-7f01-4d80-9b58-0153554c07f7",
+    "name": "AI Sentinel Backend - Phases 1 to 10",
+    "description": "Smoke tests for health, PostgreSQL persistence, target ownership/scope, assessment lifecycle, sensitive-test approval gating, owner-scoped evaluations, evidence-linked findings, reports, and retest lifecycle. Evaluation and scanner runs require separately configured workers. Set baseUrl to the local API and enable the development-only identity adapter. Protected requests use X-Development-User; never use this adapter outside local development.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000",
+      "type": "string"
+    },
+    {
+      "key": "postgresqlAddress",
+      "value": "localhost:5433",
+      "type": "string"
+    },
+    {
+      "key": "developmentUser",
+      "value": "local-developer",
+      "type": "string"
+    },
+    {
+      "key": "targetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assessmentTargetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "assessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "jobId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dependencyAssessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dependencyJobId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "semgrepRepoOwner",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "semgrepRepoName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "semgrepRepoRef",
+      "value": "main",
+      "type": "string"
+    },
+    {
+      "key": "semgrepTargetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "semgrepAssessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "semgrepJobId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "evaluationRunId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "findingId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "evidenceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "retestReady",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "retestAssessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "retestJobId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "domainUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "domainTargetId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "domainAssessmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "domainJobId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "live"]
+            },
+            "description": "Process liveness check. Expected: HTTP 200 and {\"status\":\"alive\"}."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Reports process alive', function () {",
+                  "  pm.expect(pm.response.json()).to.eql({ status: 'alive' });",
+                  "});",
+                  "pm.test('Includes request ID response header', function () {",
+                  "  pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Readiness (initialize or validate store)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "ready"]
+            },
+            "description": "Checks that the API configuration and PostgreSQL-backed repository are available. PostgreSQL must be running at localhost:5433. Expected: HTTP 200 with status ready."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200 when the PostgreSQL-backed store is ready', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Reports the JSON store ready without exposing its path', function () {",
+                  "  pm.expect(pm.response.json()).to.eql({",
+                  "    status: 'ready',",
+                  "    checks: { configuration: 'ready', data_store: 'ready' }",
+                  "  });",
+                  "});",
+                  "pm.test('Includes request ID response header', function () {",
+                  "  pm.expect(pm.response.headers.get('X-Request-ID')).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Worker status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/worker",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "worker"]
+            },
+            "description": "Expected HTTP 200. Status is running when the shared-store worker heartbeat is fresh, otherwise not_configured; queue counts remain observable."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reports worker heartbeat and queue status', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var status = pm.response.json();",
+                  "  pm.expect(['running', 'not_configured']).to.include(status.status);",
+                  "  pm.expect(status.worker_configured).to.eql(status.status === 'running');",
+                  "  if (status.worker_configured) {",
+                  "    pm.expect(status.heartbeat_at).to.be.a('string');",
+                  "  }",
+                  "  pm.expect(status.queued_jobs).to.be.a('number');",
+                  "  pm.expect(status.running_jobs).to.be.a('number');",
+                  "  pm.expect(status.failed_jobs).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Metadata",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/meta",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "meta"]
+            },
+            "description": "Expected: HTTP 200, public API/version information, and Phase 1 feature flags."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Returns metadata with local target registration enabled and execution disabled', function () {",
+                  "  pm.expect(pm.response.json()).to.eql({",
+                  "    api_version: 'v1',",
+                  "    application_version: '0.1.0',",
+                  "    features: {",
+                  "      health: true,",
+                  "      target_registration: true,",
+                  "      assessment_execution: false,",
+                  "      active_testing: false,",
+                  "      llm_analysis: false,",
+                  "      repository_access: false",
+                  "    }",
+                  "  });",
+                  "});",
+                  "pm.test('Does not disclose secrets', function () {",
+                  "  pm.expect(pm.response.text().toLowerCase()).not.to.include('secret');",
+                  "  pm.expect(pm.response.text().toLowerCase()).not.to.include('token');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Targets (development identity)",
+      "description": "Run in order to create, inspect, update, conceal cross-user access, and archive a target. The development identity header is local-only.",
+      "item": [
+        {
+          "name": "Register target",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Local Security Lab\",\n  \"domain\": \"https://app.example.test\",\n  \"repository\": {\n    \"owner\": \"example-org\",\n    \"name\": \"intentionally-vulnerable-lab\",\n    \"ref\": \"main\"\n  },\n  \"environment\": \"staging\",\n  \"scope\": {\n    \"included_hosts\": [\"app.example.test\"],\n    \"excluded_paths\": [\"/logout\", \"/billing/submit\"],\n    \"active_testing_allowed\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets"]
+            },
+            "description": "Expected: HTTP 201. Registration records proposed target/scope only; it does not authorize assessment or active testing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 201', function () { pm.response.to.have.status(201); });",
+                  "var target = pm.response.json();",
+                  "pm.test('Returns normalized target with active testing disabled', function () {",
+                  "  pm.expect(target.target_id).to.match(/^tgt_/);",
+                  "  pm.expect(target.owner_id).to.eql(pm.variables.get('developmentUser'));",
+                  "  pm.expect(target.domain).to.eql('https://app.example.test');",
+                  "  pm.expect(target.scope.active_testing_allowed).to.eql(false);",
+                  "  pm.expect(target).not.to.have.property('authorization_status');",
+                  "});",
+                  "pm.collectionVariables.set('targetId', target.target_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List caller-owned targets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets"]
+            },
+            "description": "Expected: HTTP 200 and a list containing the target created earlier in this collection."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200 and the caller-owned target', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().some(function (target) { return target.target_id === pm.collectionVariables.get('targetId'); })).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get target",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets/{{targetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets", "{{targetId}}"]
+            },
+            "description": "Expected: HTTP 200 and the registered target."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns the target owned by the caller', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().target_id).to.eql(pm.collectionVariables.get('targetId'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update target scope",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scope\": {\n    \"included_hosts\": [\"app.example.test\"],\n    \"excluded_paths\": [\"/logout\", \"/admin\", \"/billing/submit\"],\n    \"active_testing_allowed\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets/{{targetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets", "{{targetId}}"]
+            },
+            "description": "Expected: HTTP 200, updated scope, and an append-only scope-change audit event."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200 and updated exclusion paths', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().scope.excluded_paths).to.eql(['/admin', '/billing/submit', '/logout']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Conceal another user's target",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "postman-other-user",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets/{{targetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets", "{{targetId}}"]
+            },
+            "description": "Negative ownership test. Expected: HTTP 404 for a resource belonging to a different development identity."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cross-user resource access is concealed', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Archive target",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets/{{targetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets", "{{targetId}}"]
+            },
+            "description": "Expected: HTTP 204. The target is archived, not erased."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Archives target without deleting its history', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Phases 4-7 - Assessment, findings, and approval gate",
+      "description": "API lifecycle test: creates an independent repository target, assessment, owner attestation, durable job, verifies that approval cannot be supplied before the workflow reaches its sensitive-test gate, then cancels the queued job. Keep the persistent worker stopped for this folder; use the separate Offline dependency scan folder to test worker execution.",
+      "item": [
+        {
+          "name": "Register assessment target",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Assessment Repository Lab\",\n  \"repository\": {\n    \"owner\": \"example-org\",\n    \"name\": \"assessment-lab\",\n    \"ref\": \"main\"\n  },\n  \"environment\": \"test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets"]
+            },
+            "description": "Expected HTTP 201. This target is separate from the Phase 3 target archived earlier in this collection."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Creates assessment target', function () { pm.response.to.have.status(201); });",
+                  "var target = pm.response.json();",
+                  "pm.expect(target.target_id).to.match(/^tgt_/);",
+                  "pm.collectionVariables.set('assessmentTargetId', target.target_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create repository assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_id\": \"{{assessmentTargetId}}\",\n  \"mode\": \"repository_only\",\n  \"scope\": {\n    \"repository_ref\": \"main\",\n    \"excluded_paths\": [\"/tests/fixtures\"],\n    \"active_testing_allowed\": false\n  },\n  \"options\": {\n    \"run_secret_scan\": true,\n    \"run_dependency_scan\": false,\n    \"run_static_analysis\": false,\n    \"run_domain_checks\": false,\n    \"run_llm_evaluations\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments"]
+            },
+            "description": "Expected HTTP 201 and status DRAFT. Coverage remains untested until the assessment is started and processed by the separate worker."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Creates draft assessment', function () { pm.response.to.have.status(201); });",
+                  "var assessment = pm.response.json();",
+                  "pm.expect(assessment.status).to.eql('DRAFT');",
+                  "pm.expect(assessment.coverage_preview.every(function (item) { return item.tested === false; })).to.eql(true);",
+                  "pm.collectionVariables.set('assessmentId', assessment.assessment_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorization_type\": \"owner_attestation\",\n  \"scope_summary\": \"Read-only analysis of the registered test repository.\",\n  \"expires_at\": \"2099-01-01T00:00:00Z\",\n  \"ticket_reference\": \"POSTMAN-PHASE-4\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/authorize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "authorize"]
+            },
+            "description": "Expected HTTP 200 and status READY. approved_by is derived from X-Development-User."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Authorizes assessment', function () { pm.response.to.have.status(200); });",
+                  "pm.expect(pm.response.json().status).to.eql('READY');",
+                  "pm.expect(pm.response.json().authorization.approved_by).to.eql(pm.variables.get('developmentUser'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "start"]
+            },
+            "description": "Expected HTTP 202 with job status QUEUED and progress 0. When the separate persistent worker is running with the same data store, it picks up the job and runs supported repository-only Gitleaks assessments."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns accepted queued job', function () { pm.response.to.have.status(202); });",
+                  "var job = pm.response.json();",
+                  "pm.expect(job.status).to.eql('QUEUED');",
+                  "pm.expect(job.progress).to.eql(0);",
+                  "pm.collectionVariables.set('jobId', job.job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll job",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}"]
+            },
+            "description": "Expected HTTP 200. The job can be QUEUED, RUNNING, WAITING_FOR_APPROVAL, or terminal depending on worker progress; repeat this request to observe updates."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Polls job progress', function () { pm.response.to.have.status(200); });",
+                  "var job = pm.response.json();",
+                  "pm.expect(['QUEUED', 'RUNNING', 'WAITING_FOR_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED']).to.include(job.status);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject approval before workflow gate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/approve-sensitive-tests",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}", "approve-sensitive-tests"]
+            },
+            "description": "Expected HTTP 409 because this regular repository-only fixture is not WAITING_FOR_APPROVAL. In a worker-enabled flow, submit the same body only after the job pauses before an explicitly authorized active/domain test; the owner receives HTTP 200 and the job is re-queued for resume."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Does not approve before the sensitive-test gate', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('CONFLICT');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read coverage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/coverage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "coverage"]
+            },
+            "description": "Expected HTTP 200 and every requested control marked tested=false."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Coverage is explicit and not falsely passing', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().every(function (item) { return item.tested === false; })).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read findings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/findings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "findings"]
+            },
+            "description": "Expected HTTP 200 and an empty list while no isolated scanner worker has executed the queued job."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Findings endpoint is ownership protected and returns a list', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "var findings = pm.response.json();",
+                  "if (findings.length > 0) { pm.collectionVariables.set('findingId', findings[0].finding_id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel queued job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}", "cancel"]
+            },
+            "description": "Expected HTTP 200 and terminal status CANCELLED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancels queued job', function () { pm.response.to.have.status(200); });",
+                  "pm.expect(pm.response.json().status).to.eql('CANCELLED');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel assessment by assessment ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/cancel",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "cancel"]
+            },
+            "description": "Cancels the assessment using assessmentId rather than jobId. Expected HTTP 200 and assessment status CANCELLED. The caller must own the assessment; request body is not required."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('assessmentId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancels assessment by assessment ID', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var assessment = pm.response.json();",
+                  "  pm.expect(assessment.assessment_id).to.eql(pm.collectionVariables.get('assessmentId'));",
+                  "  pm.expect(assessment.status).to.eql('CANCELLED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Passive domain check",
+      "description": "Set domainUrl to the HTTPS origin of a domain you own or are explicitly authorized to assess. Run these requests in order with `python -m ai_sentinel.jobs.worker_cli --watch` already running in a separate terminal; it automatically processes queued DOMAIN_ONLY checks. This is one passive HEAD request only: no crawl, redirects, payloads, or active scan.",
+      "item": [
+        {
+          "name": "Register domain target",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Authorized domain check\",\n  \"domain\": \"{{domainUrl}}\",\n  \"environment\": \"staging\",\n  \"scope\": {\n    \"active_testing_allowed\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets"]
+            },
+            "description": "Set domainUrl first to an authorized HTTP(S) origin with no path. Target registration records scope only and does not itself authorize a scan."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var domainUrl = String(pm.collectionVariables.get('domainUrl') || '').trim();",
+                  "if (!/^https?:\\/\\/[^\\/?#\\s]+\\/?$/i.test(domainUrl)) {",
+                  "  console.error('Set the domainUrl collection variable to an authorized origin such as https://staging.example.com, with no path.');",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registers domain target', function () { pm.response.to.have.status(201); });",
+                  "var target = pm.response.json();",
+                  "pm.expect(target.domain).to.eql(pm.collectionVariables.get('domainUrl'));",
+                  "pm.collectionVariables.set('domainTargetId', target.target_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create passive domain assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_id\": \"{{domainTargetId}}\",\n  \"mode\": \"domain_only\",\n  \"scope\": {\n    \"active_testing_allowed\": false\n  },\n  \"options\": {\n    \"run_secret_scan\": false,\n    \"run_dependency_scan\": false,\n    \"run_static_analysis\": false,\n    \"run_domain_checks\": true,\n    \"run_llm_evaluations\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments"]
+            },
+            "description": "Creates a DOMAIN_ONLY assessment with passive domain_checks enabled and active testing disabled."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Creates passive domain assessment', function () { pm.response.to.have.status(201); });",
+                  "var assessment = pm.response.json();",
+                  "pm.expect(assessment.mode).to.eql('domain_only');",
+                  "pm.expect(assessment.options.run_domain_checks).to.eql(true);",
+                  "pm.collectionVariables.set('domainAssessmentId', assessment.assessment_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize passive domain assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorization_type\": \"owner_attestation\",\n  \"scope_summary\": \"Authorized passive HTTP header check of the registered domain.\",\n  \"expires_at\": \"2099-01-01T00:00:00Z\",\n  \"ticket_reference\": \"POSTMAN-DOMAIN-CHECK\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{domainAssessmentId}}/authorize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{domainAssessmentId}}", "authorize"]
+            },
+            "description": "Owner attestation is required before queuing the assessment. Use only for a target you are authorized to assess."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Authorizes passive domain assessment', function () { pm.response.to.have.status(200); });",
+                  "pm.expect(pm.response.json().status).to.eql('READY');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start domain assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{domainAssessmentId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{domainAssessmentId}}", "start"]
+            },
+            "description": "Queues the authorized DOMAIN_ONLY job. The persistent worker running with `python -m ai_sentinel.jobs.worker_cli --watch` picks it up and executes the passive check automatically; the API does not execute the domain check itself."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Queues domain check', function () { pm.response.to.have.status(202); });",
+                  "var job = pm.response.json();",
+                  "pm.expect(job.status).to.eql('QUEUED');",
+                  "pm.collectionVariables.set('domainJobId', job.job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read domain coverage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{domainAssessmentId}}/coverage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{domainAssessmentId}}", "coverage"]
+            },
+            "description": "Run after the persistent worker completes the job. The domain_checks item should be tested=true on a completed check."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Domain check coverage is complete', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var item = pm.response.json().find(function (entry) { return entry.control === 'domain_checks'; });",
+                  "  pm.expect(item).to.be.an('object');",
+                  "  pm.expect(item.tested).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read domain test results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{domainAssessmentId}}/tests",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{domainAssessmentId}}", "tests"]
+            },
+            "description": "Run after the domain worker. Results include PASS/FAIL/NEEDS_REVIEW; a transport or scope failure is ERROR and does not count as tested coverage."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns passive domain test result', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var tests = pm.response.json();",
+                  "  pm.expect(tests.some(function (item) { return item.rule_id === 'passive-http-security-headers'; })).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Offline dependency scan - OSV Scanner",
+      "description": "Optional flow for Python and Node.js dependency scanning. Configure the pinned OSV Scanner image and fresh local npm/PyPI databases before starting the worker. The scanner container has no network access.",
+      "item": [
+        {
+          "name": "Create dependency assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_id\": \"{{assessmentTargetId}}\",\n  \"mode\": \"repository_only\",\n  \"scope\": {\n    \"repository_ref\": \"main\",\n    \"excluded_paths\": [],\n    \"active_testing_allowed\": false\n  },\n  \"options\": {\n    \"run_secret_scan\": false,\n    \"run_dependency_scan\": true,\n    \"run_static_analysis\": false,\n    \"run_domain_checks\": false,\n    \"run_llm_evaluations\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments"]
+            },
+            "description": "Run after registering a repository target. Expected HTTP 201 and status DRAFT."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Creates dependency assessment draft', function () { pm.response.to.have.status(201); });",
+                  "var assessment = pm.response.json();",
+                  "pm.expect(assessment.options.run_dependency_scan).to.eql(true);",
+                  "pm.collectionVariables.set('dependencyAssessmentId', assessment.assessment_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize dependency assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorization_type\": \"owner_attestation\",\n  \"scope_summary\": \"Read-only dependency scan of the registered repository.\",\n  \"expires_at\": \"2099-01-01T00:00:00Z\",\n  \"ticket_reference\": \"POSTMAN-DEPENDENCY-SCAN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{dependencyAssessmentId}}/authorize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{dependencyAssessmentId}}", "authorize"]
+            },
+            "description": "Expected HTTP 200 and assessment status READY."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Authorizes dependency assessment', function () { pm.response.to.have.status(200); });",
+                  "pm.expect(pm.response.json().status).to.eql('READY');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start dependency assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{dependencyAssessmentId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{dependencyAssessmentId}}", "start"]
+            },
+            "description": "Expected HTTP 202 and job status QUEUED. With the persistent worker and OSV database configured, the assessment should progress through RUNNING to COMPLETED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Queues dependency assessment', function () { pm.response.to.have.status(202); });",
+                  "var job = pm.response.json();",
+                  "pm.expect(job.status).to.eql('QUEUED');",
+                  "pm.collectionVariables.set('dependencyJobId', job.job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll dependency job",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{dependencyJobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{dependencyJobId}}"]
+            },
+            "description": "Repeat until status is COMPLETED or FAILED. A missing or stale local OSV database results in assessment errors, not a clean scan."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns dependency job progress', function () { pm.response.to.have.status(200); });",
+                  "pm.expect(['QUEUED', 'RUNNING', 'WAITING_FOR_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED']).to.include(pm.response.json().status);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read dependency scan tests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{dependencyAssessmentId}}/tests",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{dependencyAssessmentId}}", "tests"]
+            },
+            "description": "Run after the job is terminal. A successful offline dependency scan has tool_name osv-scanner and status PASS or FAIL; ERROR means the scan did not complete validly."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns dependency scan test results', function () { pm.response.to.have.status(200); });",
+                  "var tests = pm.response.json();",
+                  "pm.expect(tests.some(function (test) { return test.tool_name === 'osv-scanner'; })).to.eql(true);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Static analysis scan - Semgrep",
+      "description": "End-to-end Semgrep SAST test. Before running, replace semgrepRepoOwner and semgrepRepoName with a GitHub repository accessible to the configured GitHub MCP worker; semgrepRepoRef defaults to main. Start the persistent worker with a digest-pinned Semgrep image configured. Requests in this folder create and authorize a static-analysis-only assessment, queue it, then expose the scanner test, coverage, and findings. Semgrep currently analyzes Python files only; unsupported languages are reported NOT_TESTED, not PASS.",
+      "item": [
+        {
+          "name": "Register Semgrep repository target",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Semgrep SAST Test Repository\",\n  \"repository\": {\n    \"owner\": \"{{semgrepRepoOwner}}\",\n    \"name\": \"{{semgrepRepoName}}\",\n    \"ref\": \"{{semgrepRepoRef}}\"\n  },\n  \"environment\": \"test\",\n  \"scope\": {\n    \"active_testing_allowed\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/targets",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "targets"]
+            },
+            "description": "Set semgrepRepoOwner and semgrepRepoName to a real GitHub repository accessible to the configured GitHub MCP server before sending. This request is guarded and will not be sent while either value is empty or still a placeholder. Expected HTTP 201."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var owner = (pm.collectionVariables.get('semgrepRepoOwner') || '').trim();",
+                  "var repo = (pm.collectionVariables.get('semgrepRepoName') || '').trim();",
+                  "var invalid = !owner || !repo || /^your[-_ ]/i.test(owner) || /^your[-_ ]/i.test(repo);",
+                  "if (invalid) {",
+                  "  throw new Error('Set semgrepRepoOwner and semgrepRepoName to a real GitHub repository accessible to the configured worker before registering the target.');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registers the repository target', function () { pm.response.to.have.status(201); });",
+                  "var target = pm.response.json();",
+                  "pm.expect(target.repository.owner).to.eql(pm.collectionVariables.get('semgrepRepoOwner').toLowerCase());",
+                  "pm.expect(target.repository.name).to.eql(pm.collectionVariables.get('semgrepRepoName').toLowerCase());",
+                  "pm.collectionVariables.set('semgrepTargetId', target.target_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Semgrep assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_id\": \"{{semgrepTargetId}}\",\n  \"mode\": \"repository_only\",\n  \"scope\": {\n    \"repository_ref\": \"{{semgrepRepoRef}}\",\n    \"excluded_paths\": [],\n    \"active_testing_allowed\": false\n  },\n  \"options\": {\n    \"run_secret_scan\": false,\n    \"run_dependency_scan\": false,\n    \"run_static_analysis\": true,\n    \"run_domain_checks\": false,\n    \"run_llm_evaluations\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments"]
+            },
+            "description": "Expected HTTP 201, with run_static_analysis=true and all other scan options disabled."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Creates a Semgrep-only draft assessment', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  var assessment = pm.response.json();",
+                  "  pm.expect(assessment.status).to.eql('DRAFT');",
+                  "  pm.expect(assessment.options.run_static_analysis).to.eql(true);",
+                  "  pm.expect(assessment.options.run_secret_scan).to.eql(false);",
+                  "  pm.expect(assessment.options.run_dependency_scan).to.eql(false);",
+                  "  pm.collectionVariables.set('semgrepAssessmentId', assessment.assessment_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Authorize Semgrep assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"authorization_type\": \"owner_attestation\",\n  \"scope_summary\": \"Read-only static analysis of the registered repository.\",\n  \"expires_at\": \"2099-01-01T00:00:00Z\",\n  \"ticket_reference\": \"POSTMAN-SEMGREP-SAST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{semgrepAssessmentId}}/authorize",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{semgrepAssessmentId}}", "authorize"]
+            },
+            "description": "Expected HTTP 200 and assessment status READY."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Authorizes the Semgrep assessment', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.eql('READY');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start Semgrep assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{semgrepAssessmentId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{semgrepAssessmentId}}", "start"]
+            },
+            "description": "Expected HTTP 202 and job status QUEUED. The persistent worker must be running with Docker and the digest-pinned Semgrep image configured."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Queues the Semgrep assessment', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "  var job = pm.response.json();",
+                  "  pm.expect(job.status).to.eql('QUEUED');",
+                  "  pm.collectionVariables.set('semgrepJobId', job.job_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll Semgrep job",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{semgrepJobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{semgrepJobId}}"]
+            },
+            "description": "Repeat until the job is COMPLETED or FAILED before reading the scanner test and coverage."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns Semgrep job progress', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(['QUEUED', 'RUNNING', 'WAITING_FOR_APPROVAL', 'COMPLETED', 'FAILED', 'CANCELLED']).to.include(pm.response.json().status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read Semgrep scanner test",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{semgrepAssessmentId}}/tests",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{semgrepAssessmentId}}", "tests"]
+            },
+            "description": "Run after the job is terminal. A completed scan reports PASS or FAIL; scanner failures report ERROR; unsupported source languages report NOT_TESTED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns an explicit Semgrep result', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var results = pm.response.json();",
+                  "  var semgrep = results.find(function (item) { return item.tool_name === 'semgrep'; });",
+                  "  pm.expect(semgrep, 'Semgrep scanner result').to.exist;",
+                  "  pm.expect(['PASS', 'FAIL', 'ERROR', 'NOT_TESTED']).to.include(semgrep.status);",
+                  "  pm.collectionVariables.set('semgrepTestStatus', semgrep.status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read Semgrep coverage",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{semgrepAssessmentId}}/coverage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{semgrepAssessmentId}}", "coverage"]
+            },
+            "description": "Confirms static_analysis coverage is explicit. tested=true for valid PASS/FAIL scans and false for ERROR/NOT_TESTED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Static analysis coverage matches the Semgrep outcome', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var coverage = pm.response.json().find(function (item) { return item.control === 'static_analysis'; });",
+                  "  pm.expect(coverage, 'static_analysis coverage').to.exist;",
+                  "  var shouldBeTested = ['PASS', 'FAIL'].includes(pm.collectionVariables.get('semgrepTestStatus'));",
+                  "  pm.expect(coverage.tested).to.eql(shouldBeTested);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read Semgrep findings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{semgrepAssessmentId}}/findings",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{semgrepAssessmentId}}", "findings"]
+            },
+            "description": "Expected HTTP 200 and an array. A repository with a bundled-rule match should include a static_analysis finding."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns findings for the Semgrep assessment', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "pm.test('Reports static-analysis findings when rules match', function () {",
+                  "  var findings = pm.response.json();",
+                  "  var hasSemgrepFinding = findings.some(function (item) { return item.category === 'static_analysis'; });",
+                  "  if (pm.collectionVariables.get('semgrepTestStatus') === 'FAIL') { pm.expect(hasSemgrepFinding).to.eql(true); }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Phase 8 - Evaluation results",
+      "description": "Evaluation results are created only by internal code with fixed synthetic cases and an explicitly configured DeepEval model adapter; no public create/run endpoint exists. Run listing/detail tests verify read access only. Cross-tenant rejection is covered by backend tests because the development identity adapter maps all users to one tenant.",
+      "item": [
+        {
+          "name": "List assessment evaluation runs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/evaluations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "evaluations"]
+            },
+            "description": "Expected HTTP 200 and a list. It is empty until an internal evaluation worker records a run. If present, the latest result ID is saved to evaluationRunId."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lists owner-scoped evaluation runs', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var runs = pm.response.json();",
+                  "  pm.expect(runs).to.be.an('array');",
+                  "  if (runs.length > 0) { pm.collectionVariables.set('evaluationRunId', runs[runs.length - 1].evaluation_run_id); }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject evaluation list for another owner",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "postman-other-user",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/evaluations",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "evaluations"]
+            },
+            "description": "Expected HTTP 404. Skipped if the earlier assessment request did not set assessmentId."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('assessmentId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Conceals evaluation list from another owner', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get evaluation run (optional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/evaluations/{{evaluationRunId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "evaluations", "{{evaluationRunId}}"]
+            },
+            "description": "Expected HTTP 200 when evaluationRunId identifies a run belonging to the caller. Skipped when no run ID is available."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('evaluationRunId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reads the evaluation run and version metadata', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var run = pm.response.json();",
+                  "  pm.expect(run.evaluation_run_id).to.eql(pm.collectionVariables.get('evaluationRunId'));",
+                  "  pm.expect(run.library_name).to.eql('deepeval');",
+                  "  pm.expect(run.cases).to.be.an('array');",
+                  "  run.cases.forEach(function (item) {",
+                  "    pm.expect(item).not.to.have.property('actual_output');",
+                  "    pm.expect(item).not.to.have.property('supplied_evidence_context');",
+                  "    pm.expect(item.input_ref).to.match(/^evalsha_[0-9a-f]{64}$/);",
+                  "    pm.expect(item.output_ref).to.match(/^evalsha_[0-9a-f]{64}$/);",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List evaluation cases (optional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/evaluations/{{evaluationRunId}}/cases",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "evaluations", "{{evaluationRunId}}", "cases"]
+            },
+            "description": "Expected HTTP 200 when a valid owner-scoped evaluationRunId is available. Case records include suite/case versions, bounded metric scores, assertions, duration, and safe content references."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('evaluationRunId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lists versioned evaluation cases', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Phase 9 - Findings and reports",
+      "description": "Findings are derived from deterministic, evidence-linked test results. Reports are generated from persisted assessment records, include coverage gaps and limitations, and never claim that a clean assessment proves security. Finding detail/evidence requests skip if no finding exists yet.",
+      "item": [
+        {
+          "name": "Get JSON assessment report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/report",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "report"]
+            },
+            "description": "Expected HTTP 200. Summary totals must match the returned persisted tests and findings. Reports with no tests/findings still include coverage gaps and the clean-report disclaimer."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns an owner-scoped JSON report', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var report = pm.response.json();",
+                  "  pm.expect(report.assessment_id).to.eql(pm.collectionVariables.get('assessmentId'));",
+                  "  pm.expect(report.tests).to.be.an('array');",
+                  "  pm.expect(report.findings).to.be.an('array');",
+                  "  pm.expect(report.summary.tests_total).to.eql(report.tests.length);",
+                  "  pm.expect(report.summary.findings_total).to.eql(report.findings.length);",
+                  "  pm.expect(report.disclaimer.toLowerCase()).to.include('does not guarantee');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download Markdown assessment report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assessments/{{assessmentId}}/report.md",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "assessments", "{{assessmentId}}", "report.md"]
+            },
+            "description": "Expected HTTP 200 and text/markdown content with coverage, findings/evidence, evaluation status, limitations, and the clean-report disclaimer."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns a Markdown report with limitations', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/markdown');",
+                  "  pm.expect(pm.response.text()).to.include('## Coverage');",
+                  "  pm.expect(pm.response.text()).to.include('## Limitations');",
+                  "  pm.expect(pm.response.text()).to.include('does not guarantee');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get finding details (optional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/findings/{{findingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "findings", "{{findingId}}"]
+            },
+            "description": "Expected HTTP 200 for an owner-scoped finding. Skipped when the assessment has no findings."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('findingId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reads traceable finding details', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var finding = pm.response.json();",
+                  "  pm.expect(finding.finding_id).to.eql(pm.collectionVariables.get('findingId'));",
+                  "  pm.expect(finding.evidence_refs).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(finding.provenance.test_id).to.eql(finding.verification_test_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Confirm evidence-backed finding (optional)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"state\": \"CONFIRMED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/findings/{{findingId}}/state",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "findings", "{{findingId}}", "state"]
+            },
+            "description": "Optional state transition. Expected HTTP 200 only when this finding has a matching failed deterministic scanner test and redacted evidence. The request is skipped when no finding ID is available."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('findingId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Confirms only evidence-backed findings', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().state).to.eql('CONFIRMED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List finding evidence (optional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/findings/{{findingId}}/evidence",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "findings", "{{findingId}}", "evidence"]
+            },
+            "description": "Expected HTTP 200 and redacted evidence. Skipped when the assessment has no finding."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('findingId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Lists only redacted finding evidence', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var evidence = pm.response.json();",
+                  "  pm.expect(evidence).to.be.an('array');",
+                  "  evidence.forEach(function (item) { pm.expect(item.redacted).to.eql(true); });",
+                  "  if (evidence.length > 0) { pm.collectionVariables.set('evidenceId', evidence[0].evidence_id); }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get redacted evidence (optional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/evidence/{{evidenceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "evidence", "{{evidenceId}}"]
+            },
+            "description": "Expected HTTP 200 for redacted evidence owned through the assessment. Skipped if no evidence record is available."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('evidenceId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reads redacted evidence for the owner', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().redacted).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Phase 10 - Retesting",
+      "description": "Run only after the original assessment has completed and the finding is confirmed. Set the collection variable retestReady to true after starting the persistent worker with the same shared data store; verify its status at /health/worker.",
+      "item": [
+        {
+          "name": "Queue finding retest (optional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"change_confirmed\": true,\n  \"authorization_reference\": \"CHANGE-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/findings/{{findingId}}/retest",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "findings", "{{findingId}}", "retest"]
+            },
+            "description": "Expected HTTP 202 when the owned finding is confirmed, its completed assessment authorization is still valid, and quotas allow the new job. Response includes a new assessment_id/job_id, retest_of_finding_id, retest_of_assessment_id, and status QUEUED. The worker must complete a passing verification scanner before the original finding becomes REMEDIATED_VERIFIED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.collectionVariables.get('retestReady') !== 'true' || !pm.collectionVariables.get('findingId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Queues an owner-scoped linked retest', function () {",
+                  "  pm.response.to.have.status(202);",
+                  "  var retest = pm.response.json();",
+                  "  pm.expect(retest.status).to.eql('QUEUED');",
+                  "  pm.expect(retest.retest_of_finding_id).to.eql(pm.collectionVariables.get('findingId'));",
+                  "  pm.expect(retest.retest_of_assessment_id).to.be.a('string').and.not.empty;",
+                  "  pm.expect(retest.job_id).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('retestAssessmentId', retest.assessment_id);",
+                  "  pm.collectionVariables.set('retestJobId', retest.job_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Poll retest job (optional)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Development-User",
+                "value": "{{developmentUser}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{retestJobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{retestJobId}}"]
+            },
+            "description": "Expected HTTP 200 and the same retest_of_finding_id. A compatible worker processes the job; otherwise it remains QUEUED."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('retestJobId')) { pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Polls the linked retest job', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  var job = pm.response.json();",
+                  "  pm.expect(job.retest_of_finding_id).to.eql(pm.collectionVariables.get('findingId'));",
+                  "  pm.expect(['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED']).to.include(job.status);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OpenAPI",
+      "item": [
+        {
+          "name": "Implemented routes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/openapi.json",
+              "host": ["{{baseUrl}}"],
+              "path": ["openapi.json"]
+            },
+            "description": "Expected: HTTP 200 and exactly the public health/meta plus target CRUD routes."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Returns HTTP 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "  pm.test('Documents implemented routes through Phase 10', function () {",
+                  "  var paths = Object.keys(pm.response.json().paths).sort();",
+                  "  pm.expect(paths).to.eql(['/api/v1/assessments', '/api/v1/assessments/{assessment_id}', '/api/v1/assessments/{assessment_id}/authorize', '/api/v1/assessments/{assessment_id}/cancel', '/api/v1/assessments/{assessment_id}/coverage', '/api/v1/assessments/{assessment_id}/evaluations', '/api/v1/assessments/{assessment_id}/events', '/api/v1/assessments/{assessment_id}/findings', '/api/v1/assessments/{assessment_id}/report', '/api/v1/assessments/{assessment_id}/report.md', '/api/v1/assessments/{assessment_id}/start', '/api/v1/assessments/{assessment_id}/tests', '/api/v1/evaluations/{evaluation_run_id}', '/api/v1/evaluations/{evaluation_run_id}/cases', '/api/v1/evidence/{evidence_id}', '/api/v1/findings/{finding_id}', '/api/v1/findings/{finding_id}/evidence', '/api/v1/findings/{finding_id}/retest', '/api/v1/findings/{finding_id}/state', '/api/v1/jobs/{job_id}', '/api/v1/jobs/{job_id}/approve-sensitive-tests', '/api/v1/jobs/{job_id}/cancel', '/api/v1/meta', '/api/v1/targets', '/api/v1/targets/{target_id}', '/health/live', '/health/ready', '/health/worker']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

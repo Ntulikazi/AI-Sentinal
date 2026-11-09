@@ -1,0 +1,17 @@
+# Local single-instance data and evidence must not be committed.
+/data/
+/evidence/
+*.json.lock
+
+# Python-generated files
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment files
+.env
+.venv/
+venv/

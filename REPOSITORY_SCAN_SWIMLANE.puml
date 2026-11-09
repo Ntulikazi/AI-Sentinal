@@ -1,0 +1,136 @@
+@startuml
+title AI Sentinel - Repository Assessment and Scanner Flow
+
+skinparam shadowing false
+skinparam activity {
+  BackgroundColor #F7F9FC
+  BorderColor #475569
+  DiamondBackgroundColor #FFF4CC
+  DiamondBorderColor #9A6700
+  StartColor #188038
+  EndColor #B42318
+}
+
+start
+
+|Caller / API|
+:Register repository target;
+:Create repository assessment;
+:Owner authorizes the exact target, scope, mode, and expiry;
+:POST /api/v1/assessments/{id}/start;
+if (Assessment READY, target scope unchanged,\nand authorization valid?) then (yes)
+  |Job store|
+  :Atomically persist QUEUED assessment,\njob with snapshotted limits, and audit event;
+  :Return 202 Accepted with job ID;
+else (no)
+  :Reject start request;
+  stop
+endif
+
+|Persistent worker|
+:Poll durable queue and claim queued job;
+:Load job, assessment, and target;
+if (Repository-only job in runnable state\nand authorization still valid?) then (yes)
+  :Set job stage to retrieving_repository;
+  |GitHub MCP / GitHub|
+  :Validate requested ref against registered target;
+  :Resolve ref to commit SHA;
+  :List and fetch files at that pinned commit;
+  :Apply exclusions and retrieval time,\nfile-count, file-size, and tool-call limits;
+  if (Snapshot retrieved safely?) then (yes)
+    |Worker / input staging|
+    :Copy allowed files into an isolated\ntemporary workspace;
+    :Exclude .git, excluded paths, symlinks,\nand out-of-bounds inputs;
+    if (Manifest valid and non-empty?) then (yes)
+      |Scanner coordinator|
+      :Set assessment and job to RUNNING;\nrecord scan-started audit event;
+      :Select Gitleaks, OSV-Scanner,\nand Semgrep from assessment options;
+      if (Enabled scanner count exceeds\nthe job tool-call limit?) then (yes)
+        :Create tool_call_limit execution\nfor each enabled scanner;
+      else (no)
+        while (Scanners remain\nand cancellation not requested?) is (yes)
+          :Build one ScannerRequest with the\nsame commit-pinned manifest;
+          |Docker runner|
+          :Dispatch by scanner kind;
+          if (Gitleaks?) then (yes)
+            :Check container version;
+            :Scan staged repository for secrets\nand emit JSON;
+          else (no)
+            if (OSV-Scanner?) then (yes)
+              :Find supported npm and Python lockfiles;
+              if (Supported lockfile found?) then (yes)
+                :Validate local npm and PyPI advisory databases;
+                if (Databases present, valid,\nand fresh?) then (yes)
+                  :Check container version;
+                  :Run offline scan with --no-resolve\nand mounted local advisory data;
+                else (no)
+                  :Return database failure execution;
+                endif
+              else (no)
+                :Return no_supported_lockfile execution;
+              endif
+            else (Semgrep)
+              :Stage supported .py files only;\nload bundled rules and fingerprint;
+              if (Supported source staged?) then (yes)
+                :Check container version;
+                :Scan staged sources with bundled rules\nand emit JSON;
+              else (no)
+                :Return no_supported_source execution;
+              endif
+            endif
+          endif
+          :For container runs, enforce no network,\nread-only root, restricted privileges,\nresource, time, and output limits;
+          :Return scanner execution or a\nstructured timeout / runner failure;
+          |Scanner coordinator|
+          :Record execution and check\ncancellation before the next scanner;
+        endwhile (no)
+      endif
+
+      if (Cancellation requested?) then (yes)
+        |Result normalizer|
+        :Normalize completed executions only;
+        |Job store|
+        :Persist partial tests, findings,\nevidence, coverage, audit event;\nset assessment and job to CANCELLED;
+        stop
+      else (no)
+        |Result normalizer|
+        :Validate execution metadata, pinned commit,\noutput size, duration, and scanner JSON;
+        :Create test results and redacted evidence;\ncreate findings for validated matches;
+        :Map outcomes to PASS, FAIL, ERROR,\nor NOT_TESTED;
+        |Job store|
+        :Persist tests, findings, evidence,\ncoverage, and completion audit event;
+        if (Any scanner result is ERROR?) then (yes)
+          :Set assessment to COMPLETED_WITH_ERRORS;\nset job to COMPLETED;
+        else (no)
+          :Set assessment and job to COMPLETED;
+        endif
+        |Persistent worker|
+        if (LLM evaluation requested?) then (yes)
+          :Run configured evaluation after scanner results;\nupdate evaluation coverage and status;
+        else (no)
+          :Skip evaluation;
+        endif
+        stop
+      endif
+    else (no)
+      |Job store|
+      :Fail retrieval/staging; mark assessment\nand job FAILED with an audit event;
+      stop
+    endif
+  else (no)
+    |Job store|
+    :Mark repository retrieval FAILED\nand record an audit event;
+    stop
+  endif
+else (no)
+  :Route domain-only jobs to the separate domain worker\n(outside this diagram), or reject unsupported combined jobs;\nfail a non-runnable or unauthorized repository job;
+  stop
+endif
+
+legend bottom
+  Repository-only worker path; scanner runs are sequential and use a shared manifest.
+  Repository and Semgrep-rules mounts are read-only; OSV uses local advisory data.
+  Scanner containers have no network access and enforce resource, time, and output limits.
+  Domain-only assessment execution is separate and is not expanded in this diagram.
+endlegend
+@enduml

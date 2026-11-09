@@ -1,0 +1,166 @@
+{
+  "project": {
+    "name": "AI Sentinel PostgreSQL Setup",
+    "root": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal",
+    "database_name": "ai_sentinel",
+    "database_host": "localhost",
+    "database_port": 5433
+  },
+  "required_tools": [
+    "PostgreSQL 18",
+    "psql",
+    "pg_dump",
+    "pg_restore",
+    "Python 3.13",
+    "Psycopg 3",
+    "SQLAlchemy 2.x",
+    "Alembic",
+    "FastAPI",
+    "Uvicorn",
+    "PowerShell",
+    "Postman"
+  ],
+  "optional_tools": [
+    "pgAdmin 4",
+    "PostgreSQL SQL Shell",
+    "Docker"
+  ],
+  "python_installation": {
+    "working_directory": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal",
+    "commands": [
+      "python -m pip install --upgrade pip",
+      "python -m pip install -e \".[test,quality]\""
+    ]
+  },
+  "configuration": {
+    "file": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\.env",
+    "entries": {
+      "DATABASE_URL": "postgresql+psycopg://postgres:YOUR_PASSWORD@localhost:5433/ai_sentinel",
+      "AI_SENTINEL_ENVIRONMENT": "development",
+      "AI_SENTINEL_GITHUB_MCP_ENABLED": "false"
+    },
+    "notes": [
+      "Replace YOUR_PASSWORD with the PostgreSQL postgres-user password.",
+      "URL-encode reserved password characters such as @, :, / and #.",
+      "Do not commit the .env file."
+    ]
+  },
+  "database_creation": {
+    "psql_command": [
+      "cd \"C:\\Program Files\\PostgreSQL\\18\\bin\"",
+      ".\\psql.exe -h localhost -p 5433 -U postgres"
+    ],
+    "sql_commands": [
+      "CREATE DATABASE ai_sentinel;",
+      "\\q"
+    ]
+  },
+  "psql": {
+    "executable": "C:\\Program Files\\PostgreSQL\\18\\bin\\psql.exe",
+    "connect_command": ".\\psql.exe -h localhost -p 5433 -U postgres -d ai_sentinel",
+    "connectivity_test": ".\\psql.exe -h localhost -p 5433 -U postgres -d ai_sentinel -c \"SELECT 1;\"",
+    "list_tables": ".\\psql.exe -h localhost -p 5433 -U postgres -d ai_sentinel -c \"\\dt\""
+  },
+  "alembic": {
+    "working_directory": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal",
+    "commands": [
+      "python -m alembic upgrade head",
+      "python -m alembic current",
+      "python -m alembic check",
+      "python -m alembic history"
+    ],
+    "configuration_files": [
+      "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\alembic.ini",
+      "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\alembic\\env.py",
+      "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\alembic\\versions\\0001_initial.py"
+    ]
+  },
+  "json_migration": {
+    "source_data_file": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\data\\ai_sentinel.json",
+    "source_auth_file": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\data\\ai_sentinel.auth.json",
+    "command": [
+      "python -m ai_sentinel.db.migrate_json .\\data\\ai_sentinel.json `",
+      "  --database-url \"$env:DATABASE_URL\" `",
+      "  --auth-file .\\data\\ai_sentinel.auth.json"
+    ],
+    "repeatable": true,
+    "source_files_are_deleted": false,
+    "expected_row_counts": {
+      "targets": 103,
+      "assessments": 104,
+      "scanner_test_results": 55,
+      "findings": 10,
+      "evidence": 15,
+      "evaluations": 25,
+      "reports": 0,
+      "assessment_jobs": 88,
+      "audit_events": 0
+    }
+  },
+  "database_tables": [
+    "tenants",
+    "users",
+    "auth_sessions",
+    "targets",
+    "assessments",
+    "assessment_jobs",
+    "scanner_test_results",
+    "findings",
+    "evidence",
+    "evaluations",
+    "reports",
+    "audit_events"
+  ],
+  "verification_queries": [
+    "SELECT 1;",
+    "SELECT COUNT(*) FROM targets;",
+    "SELECT COUNT(*) FROM assessments;",
+    "SELECT COUNT(*) FROM assessment_jobs;",
+    "SELECT COUNT(*) FROM findings;",
+    "SELECT COUNT(*) FROM scanner_test_results;",
+    "SELECT * FROM assessments WHERE assessment_id = 'asm_1fd6295ced9644a3aa72903e69b7a26a';",
+    "SELECT * FROM assessment_jobs WHERE assessment_id = 'asm_1fd6295ced9644a3aa72903e69b7a26a';",
+    "SELECT * FROM findings WHERE assessment_id = 'asm_1fd6295ced9644a3aa72903e69b7a26a';"
+  ],
+  "python_connectivity_test": "python -c \"from ai_sentinel.config import Settings; from ai_sentinel.db.database import create_database_engine; from sqlalchemy import text; s=Settings.from_environment(); e=create_database_engine(s.database_url.get_secret_value()); c=e.connect(); print(c.execute(text('SELECT 1')).scalar_one()); c.close()\"",
+  "api": {
+    "start_command": "python -m uvicorn apps.api.main:app --reload --host 127.0.0.1 --port 8000",
+    "addresses": {
+      "api": "http://127.0.0.1:8000",
+      "swagger_docs": "http://127.0.0.1:8000/docs",
+      "health_live": "http://127.0.0.1:8000/health/live",
+      "health_ready": "http://127.0.0.1:8000/health/ready",
+      "worker_health": "http://127.0.0.1:8000/health/worker",
+      "metadata": "http://127.0.0.1:8000/api/v1/meta"
+    }
+  },
+  "worker": {
+    "start_command": "python -m ai_sentinel.jobs.worker_cli --watch",
+    "github_mcp_disabled": true,
+    "domain_scans_supported": true,
+    "repository_scans_require_github_mcp": true
+  },
+  "tests": {
+    "commands": [
+      "python -m pytest tests/test_sql_repository.py -q",
+      "python -m pytest tests/test_worker_status.py -q",
+      "python -m pytest tests/test_health.py -q",
+      "python -m pytest"
+    ]
+  },
+  "backup_and_restore": {
+    "backup_directory": "C:\\Backups",
+    "backup_command": ".\\pg_dump.exe -h localhost -p 5433 -U postgres -d ai_sentinel -Fc -f \"C:\\Backups\\ai_sentinel.dump\"",
+    "restore_command": ".\\pg_restore.exe -h localhost -p 5433 -U postgres -d ai_sentinel --clean --if-exists \"C:\\Backups\\ai_sentinel.dump\"",
+    "warning": "Restore only into the intended database; --clean removes objects in the target database before restoration."
+  },
+  "implementation_files": {
+    "database_configuration": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\src\\ai_sentinel\\db\\database.py",
+    "database_models": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\src\\ai_sentinel\\db\\models.py",
+    "postgres_repository": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\src\\ai_sentinel\\db\\sql_repository.py",
+    "authentication_repository": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\src\\ai_sentinel\\db\\sql_auth_store.py",
+    "json_migration_utility": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\src\\ai_sentinel\\db\\migrate_json.py",
+    "worker_command": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\src\\ai_sentinel\\jobs\\worker_cli.py",
+    "postman_collection": "C:\\Users\\NtulikaziNkoliswa\\Desktop\\Sentinal\\AI_Sentinel_Phase_1.postman_collection.json"
+  }
+}

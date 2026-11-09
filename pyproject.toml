@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-sentinel-backend"
+version = "0.1.0"
+description = "AI Sentinel security assessment API"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi==0.115.0",
+    "deepeval==3.7.0",
+    "langchain-core==1.6.6",
+    "mcp==2.2.0",
+    "pydantic==2.12.4",
+    "python-dotenv==1.2.1",
+    "google-auth==2.40.3",
+    "uvicorn==0.31.1",
+    "SQLAlchemy>=2.0,<3.0",
+    "psycopg[binary]>=3.2,<4.0",
+    "alembic>=1.14,<2.0",
+]
+
+[project.scripts]
+ai-sentinel-worker = "ai_sentinel.jobs.worker_cli:main"
+ai-sentinel-domain-worker = "ai_sentinel.jobs.domain_worker_cli:main"
+ai-sentinel-eval-live = "ai_sentinel.evaluations.inception_live_cli:main"
+ai-sentinel-alembic = "ai_sentinel.db.alembic_cli:main"
+
+[project.optional-dependencies]
+test = [
+    "httpx==0.28.1",
+    "pytest==8.4.2",
+]
+quality = [
+    "mypy>=1.13,<2.0",
+    "ruff>=0.9,<1.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+files = ["src/ai_sentinel"]
+mypy_path = "src"
+python_version = "3.13"
+
+[tool.setuptools.packages.find]
+where = ["src", "."]
+include = ["ai_sentinel*", "apps*"]
+
+[tool.setuptools.package-data]
+"ai_sentinel.scanners" = ["semgrep_rules.yml"]
