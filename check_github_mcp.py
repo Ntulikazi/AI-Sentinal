@@ -24,7 +24,7 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-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$token = Read-Host "GitHub read-only token" -AsSecureString
+github_access_token = Read-Host "GitHub read-only token" -AsSecureString
 $env:GITHUB_PERSONAL_ACCESS_TOKEN = [System.Net.NetworkCredential]::new("", $token).Password
 
 python -m ai_sentinel.jobs.worker_cli --watch
